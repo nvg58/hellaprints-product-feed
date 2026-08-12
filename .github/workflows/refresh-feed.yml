@@ -60,9 +60,33 @@ jobs:
       - name: Fetch details for new products
         run: node gen-openai-product-feed.mjs details --concurrency=20
 
-      # include-ids.txt (committed here) restricts the published feed to one lifecycle
-      # cohort — currently the 'harvester' products. Delete the file to publish the whole
-      # catalog again; refresh it with fetch-lifecycle-ids.mjs against the dashboard DB.
+      # The published feed is restricted to one lifecycle cohort (currently 'harvester').
+      # The dashboard owns that cohort, so pull the current list from it; include-ids.txt in
+      # this repo is the committed fallback used when the secret or the endpoint is missing.
+      # Delete include-ids.txt AND unset the secret to publish the whole catalog again.
+      - name: Refresh lifecycle allow-list
+        env:
+          FEED_FETCH_TOKEN: ${{ secrets.FEED_FETCH_TOKEN }}
+          DASHBOARD_URL: ${{ vars.DASHBOARD_URL || 'https://hella-ads-dashboard.vercel.app' }}
+          FEED_STATE: ${{ vars.FEED_STATE || 'harvester' }}
+        run: |
+          if [ -z "$FEED_FETCH_TOKEN" ]; then
+            echo "no FEED_FETCH_TOKEN secret — using the committed include-ids.txt"
+            exit 0
+          fi
+          curl -fsS --retry 3 --retry-delay 5 \
+            "$DASHBOARD_URL/api/feed/lifecycle-ids?state=$FEED_STATE&token=$FEED_FETCH_TOKEN" \
+            -o include-ids.new
+          n=$(grep -vc '^#' include-ids.new || true)
+          # An empty cohort would silently publish an empty feed — keep the previous list instead.
+          if [ "${n:-0}" -lt 1 ]; then
+            echo "endpoint returned no ids — keeping the committed include-ids.txt"
+            rm -f include-ids.new
+            exit 0
+          fi
+          mv include-ids.new include-ids.txt
+          echo "allow-list: $n ids ($FEED_STATE)"
+
       - name: Build feed
         run: |
           ARGS=""
@@ -78,6 +102,16 @@ jobs:
           FEED_REPO: ${{ github.repository }}
           FEED_REMOTE: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
         run: ./publish-feed.sh
+
+      # Keep the committed fallback in step with what was just published.
+      - name: Commit refreshed allow-list
+        run: |
+          git config user.name feed-bot
+          git config user.email feed-bot@users.noreply.github.com
+          git add include-ids.txt
+          git diff --cached --quiet && { echo "allow-list unchanged"; exit 0; }
+          git commit -q -m "Refresh lifecycle allow-list [skip ci]"
+          git push -q origin HEAD:${{ github.ref_name }}
 
       - name: Summary
         run: |
