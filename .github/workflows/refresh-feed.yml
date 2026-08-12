@@ -42,6 +42,18 @@ jobs:
           restore-keys: |
             pdp-details-
 
+      # Cache miss (first run, or eviction after 7 idle days) falls back to the seed asset
+      # instead of re-crawling all ~96k product pages.
+      - name: Seed PDP cache on a cold start
+        if: hashFiles('data/details.jsonl') == ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p data
+          gh release download pdp-cache -R "$GITHUB_REPOSITORY" -p 'details-seed.jsonl.gz' -O - \
+            | gunzip > data/details.jsonl
+          wc -l data/details.jsonl
+
       - name: Crawl catalog
         run: node gen-openai-product-feed.mjs catalog
 
