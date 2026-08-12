@@ -13,7 +13,8 @@ So the whole catalog is published as one file:
 https://nvg58.github.io/hellaprints-product-feed/products.parquet
 ```
 
-96,706 rows, zstd, ~26 MB, `file_type=full-parquet`, no auth. `manifest.json` and `index.html` sit
+Currently **244 rows** (the `harvester` lifecycle cohort — see "Which products go in" below),
+zstd, `file_type=full-parquet`, no auth. `manifest.json` and `index.html` sit
 next to it for humans. Range requests work (206), so a reader can fetch the footer without pulling
 the whole file. Keep it one shard: `make-parquet.py --rows-per-shard 200000` writes the plain
 `products.parquet` name; anything above the shard size switches to `products-0000.parquet`, … and
@@ -30,6 +31,25 @@ node gen-openai-product-feed.mjs build --out=hellaprints-openai-products.tsv
 python3 make-parquet.py --in hellaprints-openai-products.tsv --outdir dist
 ./publish-feed.sh
 ```
+
+## Which products go in
+
+`build --include-ids=include-ids.txt` restricts the feed to an allow-list of `item_id`s; without the
+flag the whole ~96.7k catalog is published. `include-ids.txt` currently holds the **harvester**
+cohort from the dashboard's `product_lifecycle` table (245 ids, 244 still in the storefront catalog).
+Regenerate it whenever the cohort moves, then rebuild and publish:
+
+```bash
+node fetch-lifecycle-ids.mjs --state=harvester      # → include-ids.txt (reads ../dashboard/.env.local)
+node gen-openai-product-feed.mjs build --include-ids=include-ids.txt --out=hellaprints-openai-products.tsv
+python3 make-parquet.py --in hellaprints-openai-products.tsv --outdir dist --rows-per-shard 200000
+./publish-feed.sh
+```
+
+`product_lifecycle.item_id` is the same 24-hex storefront product `_id` the feed uses as `item_id`,
+so the join is direct. The copy of `include-ids.txt` committed to the feed repo is what the daily
+workflow uses — the CI job has no database access, so a cohort change only reaches the live feed
+once that file is pushed. Delete it there to go back to the full catalog.
 
 ## Output
 
