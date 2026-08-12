@@ -47,9 +47,15 @@ python3 make-parquet.py --in hellaprints-openai-products.tsv --outdir dist --row
 ```
 
 `product_lifecycle.item_id` is the same 24-hex storefront product `_id` the feed uses as `item_id`,
-so the join is direct. The copy of `include-ids.txt` committed to the feed repo is what the daily
-workflow uses — the CI job has no database access, so a cohort change only reaches the live feed
-once that file is pushed. Delete it there to go back to the full catalog.
+so the join is direct.
+
+The daily job doesn't need any of that: it pulls the cohort from the dashboard at
+`/api/feed/lifecycle-ids?state=$FEED_STATE&token=$FEED_FETCH_TOKEN`
+(dashboard PR #45), writes it to `include-ids.txt` and commits the refreshed copy. Config lives in
+the feed repo — secret `FEED_FETCH_TOKEN`, optional variables `FEED_STATE` (default `harvester`)
+and `DASHBOARD_URL`. With no secret set, or if the endpoint returns nothing, the run falls back to
+the committed `include-ids.txt` rather than publishing an empty feed. Delete that file *and* unset
+the secret to publish the whole catalog again.
 
 ## Output
 
