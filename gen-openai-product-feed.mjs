@@ -337,10 +337,30 @@ const clean = (v, max) => {
 };
 
 const CDN = 'https://d2dytk4tvgwhb4.cloudfront.net';
-const galleryUrls = (d) =>
-  (d?.gallery || [])
-    .map((u) => (String(u).startsWith('http') ? u : `${CDN}/${u}/regular.jpg`))
-    .slice(0, 8);
+
+// Two separate image sources on the PDP, and a product can have either or both:
+//   product.images[]   — the rendered mockups (full URLs). Products with no lifestyle gallery
+//                        still have 3-4 of these, so they must not be skipped.
+//   product.gallery_uris[] — lifestyle/detail shots, stored as paths needing /regular.jpg.
+// Union of both, minus whatever is already the main image_url.
+// A render URL is .../products/<id>/<option>/<side>/regular.jpg. When the main image is a
+// gallery shot, product.images[] still lists renders for some *other* option ("s/front"),
+// and those are placeholders that 404 — verified across 274 render URLs: same option as the
+// main image ⇒ 23/23 live, different option ⇒ 238/251 dead. So renders are kept only when
+// their option segment matches the main image's.
+const optionSegment = (u) => String(u).split('/products/')[1]?.split('/')[1] ?? null;
+
+const galleryUrls = (p, d) => {
+  const main = p.image || p.thumbnail || '';
+  const mainOption = optionSegment(main);
+  const renders = (d?.images || [])
+    .map((i) => (typeof i === 'string' ? i : i?.src))
+    .filter((u) => u && optionSegment(u) === mainOption);
+  const gallery = (d?.gallery || []).map((u) =>
+    String(u).startsWith('http') ? u : `${CDN}/${u}/regular.jpg`,
+  );
+  return [...new Set([...renders, ...gallery])].filter((u) => u !== main).slice(0, 8);
+};
 
 function buildRow(p, d) {
   const desc = d?.description && d.description.length > 40 ? d.description : fallbackDescription(p, d);
@@ -353,7 +373,9 @@ function buildRow(p, d) {
     item_id: p.id,
     title: clean(p.title, 150),
     description: clean(desc, 5000),
-    url: `${STORE}/${p.slug}`,
+    // 286 of ~96.7k slugs contain non-ASCII characters (en dashes, curly apostrophes);
+    // the spec wants RFC 1738 URLs, so percent-encode them.
+    url: encodeURI(`${STORE}/${p.slug}`),
     image_url: p.image || p.thumbnail,
     availability: 'in_stock',
     price: `${price.toFixed(2)} ${p.currency || 'USD'}`,
@@ -379,7 +401,7 @@ function buildRow(p, d) {
     listing_has_variations: multi ? 'true' : 'false',
     item_group_title: multi ? clean(p.title, 150) : '',
     size,
-    additional_image_urls: galleryUrls(d).join(','),
+    additional_image_urls: galleryUrls(p, d).join(','),
     accepts_returns: 'true',
     return_deadline_in_days: String(RETURN_DEADLINE_DAYS),
     target_countries: 'US',
