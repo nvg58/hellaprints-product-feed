@@ -5,14 +5,19 @@ from the live hellaprints.com storefront API.
 
 ## Hosted URL (what OpenAI actually reads)
 
-The feed connector is configured as **Hosted URL** with `file_type=full-parquet`, prefix:
+The connector's "Connect your feed via URL" dialog wants the **URL of the file**, not a directory —
+a directory URL fails (`https://…/hellaprints-product-feed` 301-redirects and serves `text/html`).
+So the whole catalog is published as one file:
 
 ```
-https://nvg58.github.io/hellaprints-product-feed/
+https://nvg58.github.io/hellaprints-product-feed/products.parquet
 ```
 
-Files under that prefix: `products-0000.parquet`, `products-0001.parquet` (zstd, ~27 MB total),
-plus `manifest.json` and an `index.html` listing. Published from
+96,706 rows, zstd, ~26 MB, `file_type=full-parquet`, no auth. `manifest.json` and `index.html` sit
+next to it for humans. Range requests work (206), so a reader can fetch the footer without pulling
+the whole file. Keep it one shard: `make-parquet.py --rows-per-shard 200000` writes the plain
+`products.parquet` name; anything above the shard size switches to `products-0000.parquet`, … and
+the file URL would have to change. Published from
 [nvg58/hellaprints-product-feed](https://github.com/nvg58/hellaprints-product-feed) — `main` holds
 these scripts, `gh-pages` holds the snapshot and is force-pushed as a single commit each run so the
 27 MB payload never accumulates in git history. `.github/workflows/refresh-feed.yml` (from
