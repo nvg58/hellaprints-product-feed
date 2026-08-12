@@ -1,6 +1,6 @@
 # lifecycle allow-list for the OpenAI product feed
 # states: harvester
-# product_lifecycle last updated: 2026-08-12T00:54:59.077Z
+# generated: 2026-08-12T05:03:29.519Z
 # 245 ids
 693a47a99529ed8f95b930c9
 695b2304cdb09647300ad782
