@@ -41,6 +41,10 @@ const flag = (name, def) => {
   return hit ? hit.split('=').slice(1).join('=') : def;
 };
 const LIMIT = Number(flag('limit', 0)) || 0;
+// Optional allow-list: one item_id per line (blank lines and #comments ignored). When set, the
+// build emits only those products — e.g. the 'harvester' lifecycle cohort exported by
+// fetch-lifecycle-ids.mjs. Omit the flag to publish the whole catalog.
+const INCLUDE_IDS_FILE = flag('include-ids', '');
 const CONCURRENCY = Number(flag('concurrency', 20));
 const OUT = flag('out', path.join(ROOT, 'hellaprints-openai-products.tsv'));
 
@@ -387,6 +391,22 @@ function buildRow(p, d) {
 function stageBuild() {
   let catalog = readJsonl(CATALOG_FILE);
   if (LIMIT) catalog = catalog.slice(0, LIMIT);
+
+  let include = null;
+  if (INCLUDE_IDS_FILE) {
+    include = new Set(
+      fs
+        .readFileSync(INCLUDE_IDS_FILE, 'utf8')
+        .split('\n')
+        .map((l) => l.trim())
+        .filter((l) => l && !l.startsWith('#')),
+    );
+    const present = catalog.filter((p) => include.has(p.id)).length;
+    console.log(`build: allow-list ${INCLUDE_IDS_FILE} — ${include.size} ids, ${present} found in catalog`);
+    if (present < include.size) {
+      console.log(`  ${include.size - present} listed id(s) are no longer in the storefront catalog`);
+    }
+  }
   const details = new Map();
   for (const d of readJsonl(DETAILS_FILE)) if (!d.error) details.set(d.id, d);
 
@@ -407,6 +427,7 @@ function stageBuild() {
   let skipped = 0;
   const skipReasons = {};
   for (const p of catalog) {
+    if (include && !include.has(p.id)) continue;
     if (!p.id || !p.slug || !p.title) {
       skipped++;
       skipReasons.missing_core = (skipReasons.missing_core || 0) + 1;

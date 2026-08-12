@@ -60,9 +60,14 @@ jobs:
       - name: Fetch details for new products
         run: node gen-openai-product-feed.mjs details --concurrency=20
 
+      # include-ids.txt (committed here) restricts the published feed to one lifecycle
+      # cohort — currently the 'harvester' products. Delete the file to publish the whole
+      # catalog again; refresh it with fetch-lifecycle-ids.mjs against the dashboard DB.
       - name: Build feed
         run: |
-          node gen-openai-product-feed.mjs build --out=hellaprints-openai-products.tsv
+          ARGS=""
+          [ -f include-ids.txt ] && ARGS="--include-ids=include-ids.txt"
+          node gen-openai-product-feed.mjs build --out=hellaprints-openai-products.tsv $ARGS
           node validate-feed.mjs hellaprints-openai-products.tsv --sample-urls=10
 
       - name: Build parquet shards
