@@ -66,7 +66,7 @@ jobs:
           node validate-feed.mjs hellaprints-openai-products.tsv --sample-urls=10
 
       - name: Build parquet shards
-        run: python3 make-parquet.py --in hellaprints-openai-products.tsv --outdir dist
+        run: python3 make-parquet.py --in hellaprints-openai-products.tsv --outdir dist --rows-per-shard 200000
 
       - name: Publish to gh-pages
         env:

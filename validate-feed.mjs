@@ -23,12 +23,17 @@ const REQUIRED = [
   'brand',
   'is_eligible_search',
   'is_eligible_checkout',
+  'is_ads_eligible',
   'return_policy',
+  'seller_name',
+  'seller_url',
+  'target_countries',
+  'store_country',
 ];
 const MAXLEN = { item_id: 100, title: 150, description: 5000, brand: 70, seller_name: 70, mpn: 70, size: 20 };
 const AVAILABILITY = new Set(['in_stock', 'out_of_stock', 'pre_order', 'backorder', 'unknown']);
 const BOOL = new Set(['true', 'false']);
-const BOOL_FIELDS = ['is_eligible_search', 'is_eligible_checkout', 'listing_has_variations', 'accepts_returns', 'is_digital'];
+const BOOL_FIELDS = ['is_eligible_search', 'is_eligible_checkout', 'is_ads_eligible', 'listing_has_variations', 'accepts_returns', 'is_digital'];
 
 const errs = new Map();
 const bump = (k) => errs.set(k, (errs.get(k) || 0) + 1);

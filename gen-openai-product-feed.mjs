@@ -304,6 +304,7 @@ const TSV_FIELDS = [
   'brand',
   'is_eligible_search',
   'is_eligible_checkout',
+  'is_ads_eligible',
   'return_policy',
   'seller_name',
   'seller_url',
@@ -354,7 +355,11 @@ function buildRow(p, d) {
     price: `${price.toFixed(2)} ${p.currency || 'USD'}`,
     brand: BRAND,
     is_eligible_search: 'true',
+    // Direct purchase inside ChatGPT — only legitimate once the store implements the
+    // Agentic Checkout Spec. Until then the item is search + ads eligible, not buyable.
     is_eligible_checkout: 'false',
+    is_ads_eligible: 'true', // required for Ads processing
+
     return_policy: RETURN_POLICY_URL,
     seller_name: SELLER_NAME,
     seller_url: STORE,

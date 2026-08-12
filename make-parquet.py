@@ -57,10 +57,18 @@ print(f'read {table.num_rows} rows x {table.num_columns} cols from {src}')
 for old in outdir.glob(f'{args.name}-*.parquet'):
     old.unlink()
 
+old_single = outdir / f'{args.name}.parquet'
+if old_single.exists():
+    old_single.unlink()
+
+# One shard → publish it under a plain, stable file name (`products.parquet`) so the whole
+# catalog is reachable as a single file URL; multiple shards get -0000, -0001, ... suffixes.
+n_shards = -(-table.num_rows // args.rows_per_shard)
+
 shards = []
 for i, start in enumerate(range(0, table.num_rows, args.rows_per_shard)):
     chunk = table.slice(start, args.rows_per_shard)
-    path = outdir / f'{args.name}-{i:04d}.parquet'
+    path = outdir / (f'{args.name}.parquet' if n_shards == 1 else f'{args.name}-{i:04d}.parquet')
     pq.write_table(chunk, path, compression='zstd', compression_level=9, version='2.6')
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
     shards.append({'file': path.name, 'rows': chunk.num_rows, 'bytes': path.stat().st_size, 'sha256': digest})
