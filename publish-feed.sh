@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Publish dist/ (parquet shards + manifest + index) to the public GitHub Pages host
-# that OpenAI's hosted-URL connector reads.
+# Publish dist/ (parquet shards + manifest + index, plus the Pinterest catalog CSV) to the
+# public GitHub Pages host that OpenAI's hosted-URL connector reads. Pinterest's catalog
+# ingestion reads pinterest-products.csv from the same host.
 #
 #   ./publish-feed.sh
 #
@@ -19,6 +20,8 @@ ls "$DIST"/*.parquet >/dev/null 2>&1 || { echo "no parquet shards in dist/" >&2;
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 cp "$DIST"/*.parquet "$DIST"/manifest.json "$DIST"/index.html "$STAGE"/
+# Optional extra deliverable: the Pinterest catalog CSV (make-pinterest-csv.mjs).
+if [ -f "$DIST/pinterest-products.csv" ]; then cp "$DIST/pinterest-products.csv" "$STAGE"/; fi
 touch "$STAGE/.nojekyll"   # serve every file as-is, no Jekyll processing
 
 cd "$STAGE"

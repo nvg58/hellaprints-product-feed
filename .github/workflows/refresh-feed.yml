@@ -1,8 +1,9 @@
 name: refresh-feed
 
 # Daily full snapshot: re-read the catalog (prices/titles/images), fetch PDP details for
-# products not already cached, rebuild the parquet shards and force-push them to gh-pages,
-# which is what OpenAI's hosted-URL connector reads.
+# products not already cached, rebuild the parquet shards + the Pinterest catalog CSV and
+# force-push them to gh-pages, which is what OpenAI's hosted-URL connector and Pinterest's
+# catalog ingestion read.
 on:
   schedule:
     - cron: '20 9 * * *' # 09:20 UTC ≈ 04:20 America/Chicago (store's account timezone)
@@ -96,6 +97,13 @@ jobs:
 
       - name: Build parquet shards
         run: python3 make-parquet.py --in hellaprints-openai-products.tsv --outdir dist --rows-per-shard 200000
+
+      # Same rows, Pinterest's catalog column set — published next to the parquet as
+      # dist/pinterest-products.csv for Pinterest's "data source from URL" ingestion.
+      - name: Build Pinterest catalog CSV
+        run: node make-pinterest-csv.mjs --custom-label-0="$FEED_STATE"
+        env:
+          FEED_STATE: ${{ vars.FEED_STATE || 'harvester' }}
 
       - name: Publish to gh-pages
         env:

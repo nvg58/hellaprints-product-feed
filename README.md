@@ -15,7 +15,13 @@ https://nvg58.github.io/hellaprints-product-feed/products.parquet
 
 Currently **244 rows** (the `harvester` lifecycle cohort — see "Which products go in" below),
 zstd, `file_type=full-parquet`, no auth. `manifest.json` and `index.html` sit
-next to it for humans. Range requests work (206), so a reader can fetch the footer without pulling
+next to it for humans, and the same rows are published as a **Pinterest catalog CSV**:
+
+```
+https://nvg58.github.io/hellaprints-product-feed/pinterest-products.csv
+```
+
+(see "Pinterest catalog CSV" below). Range requests work (206), so a reader can fetch the footer without pulling
 the whole file. Keep it one shard: `make-parquet.py --rows-per-shard 200000` writes the plain
 `products.parquet` name; anything above the shard size switches to `products-0000.parquet`, … and
 the file URL would have to change. Published from
@@ -62,6 +68,7 @@ the secret to publish the whole catalog again.
 | File | What |
 |---|---|
 | `dist/products-*.parquet` | What the hosted URL serves — zstd parquet, 50k rows/shard, every column UTF-8 string |
+| `dist/pinterest-products.csv` | Pinterest catalog data source — same rows, Pinterest's column set (`make-pinterest-csv.mjs`) |
 | `hellaprints-openai-products.tsv` | The feed — UTF-8, tab-delimited, header row, 1 row per product (~96.7k) |
 | `hellaprints-openai-products.csv` | Same rows, RFC 4180 CSV — for the "Upload CSV or TXT" dialog (rename to `.txt` to upload the tab-delimited one) |
 | `hellaprints-openai-products.tsv.gz` | Same file gzipped (~29 MB) — the spec accepts `.tsv.gz` |
@@ -112,6 +119,38 @@ does **not** return `description` and there is no public product feed on the dom
 | `is_eligible_checkout` | `false` — the store is not wired to OpenAI Instant Checkout. Flip to `true` only after the checkout integration exists |
 | `target_countries`, `store_country` | `US` |
 
+## Pinterest catalog CSV
+
+`make-pinterest-csv.mjs` re-shapes the built TSV into the column set of Pinterest's own sample data
+source, and drops the file into `dist/` so `publish-feed.sh` ships it to the same host:
+
+```bash
+node make-pinterest-csv.mjs                        # dist/pinterest-products.csv (+ index.html entry)
+node make-pinterest-csv.mjs --custom-label-0=scout_plus --no-utm
+```
+
+Point Pinterest at
+`https://nvg58.github.io/hellaprints-product-feed/pinterest-products.csv` (Catalogs → Data sources →
+add a data source from URL, no auth, comma-delimited, daily fetch). The daily `refresh-feed`
+workflow rebuilds it, so the cohort and prices track the parquet feed.
+
+| Pinterest column | Source |
+|---|---|
+| `id`, `item_group_id` | `item_id` / `group_id` (equal — variants are collapsed to one row) |
+| `title`, `description`, `link`, `image_link`, `price`, `brand` | as in the TSV; `price` keeps the `31.95 USD` ISO-4217 form and is the lowest variant price |
+| `availability` | `in_stock` → `in stock` (Pinterest's wording) |
+| `condition` | `new` |
+| `google_product_category` | the mapped taxonomy path; blank when the title matched no rule |
+| `product_type` | leaf of that path (`… > Spare Tire Covers` → `Spare Tire Covers`) — the grouping key for Pinterest product groups |
+| `additional_image_link` | `additional_image_urls`, comma-separated, capped at Pinterest's 10 |
+| `size` | only set for single-variant products |
+| `custom_label_0` | the lifecycle cohort (`harvester`) — `--custom-label-0=` overrides |
+| `adwords_redirect` | `link` + `utm_source=pinterest&utm_medium=cpc&utm_campaign=pinterest_shopping`, so Pinterest clicks are attributable in the store's own analytics; `--no-utm` emits the bare link |
+| `sale_price`, `gender`, `age_group`, `size_type`, `shipping` | deliberately **empty** — see below |
+
+Rows missing any Pinterest-required field (`id`, `title`, `description`, `link`, `image_link`,
+`price`, `availability`) are skipped and listed in the run output rather than published broken.
+
 ## Deliberate choices
 
 - **One row per product, not per variant.** The list API returns only the default variant; the PDP
@@ -125,6 +164,8 @@ does **not** return `description` and there is no public product feed on the dom
   not a per-item sale price.
 - **`shipping` is omitted.** Free US shipping is conditional on a $35+ order, which the single-line
   `shipping` field cannot express faithfully.
+- **`gender`, `age_group` and `size_type` stay empty** in the Pinterest CSV. The store states none of
+  them per product, and a guessed value is worse than an absent one.
 
 ## Known data issues (merchant side, not feed bugs)
 
