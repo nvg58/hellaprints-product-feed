@@ -45,6 +45,11 @@ const LIMIT = Number(flag('limit', 0)) || 0;
 // build emits only those products — e.g. the 'harvester' lifecycle cohort exported by
 // fetch-lifecycle-ids.mjs. Omit the flag to publish the whole catalog.
 const INCLUDE_IDS_FILE = flag('include-ids', '');
+// Optional tag filter, matched against the PDP tags cached in data/details.jsonl — e.g.
+// --require-tag=CL2:personalized reproduces the Merchize back-office query
+// (tags[]=CL2:personalized & isPersonalized=true) with no credentials: the back office's
+// inactive products never appear in the storefront catalog, so the two sets agree exactly.
+const REQUIRE_TAG = flag('require-tag', '');
 const CONCURRENCY = Number(flag('concurrency', 20));
 const OUT = flag('out', path.join(ROOT, 'hellaprints-openai-products.tsv'));
 
@@ -414,6 +419,15 @@ function stageBuild() {
   let catalog = readJsonl(CATALOG_FILE);
   if (LIMIT) catalog = catalog.slice(0, LIMIT);
 
+  let tagged = null;
+  if (REQUIRE_TAG) {
+    tagged = new Set();
+    for (const d of readJsonl(DETAILS_FILE)) {
+      if (!d.error && (d.tags || []).includes(REQUIRE_TAG)) tagged.add(d.id);
+    }
+    console.log(`build: tag filter ${REQUIRE_TAG} — ${tagged.size} products carry it`);
+  }
+
   let include = null;
   if (INCLUDE_IDS_FILE) {
     include = new Set(
@@ -450,6 +464,7 @@ function stageBuild() {
   const skipReasons = {};
   for (const p of catalog) {
     if (include && !include.has(p.id)) continue;
+    if (tagged && !tagged.has(p.id)) continue;
     if (!p.id || !p.slug || !p.title) {
       skipped++;
       skipReasons.missing_core = (skipReasons.missing_core || 0) + 1;

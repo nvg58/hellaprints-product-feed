@@ -98,6 +98,19 @@ jobs:
       - name: Build parquet shards
         run: python3 make-parquet.py --in hellaprints-openai-products.tsv --outdir dist --rows-per-shard 200000
 
+      # Second, independent cohort published under the same prefix: every product tagged
+      # CL2:personalized on its product page. That tag is the storefront-visible half of the
+      # Merchize back-office query (tags[]=CL2:personalized & isPersonalized=true) — the
+      # back office's inactive products never reach the storefront catalog anyway — so it
+      # needs no back-office credentials and refreshes itself as products are re-crawled.
+      - name: Build personalized feed
+        env:
+          PERSONALIZED_TAG: ${{ vars.PERSONALIZED_TAG || 'CL2:personalized' }}
+        run: |
+          node gen-openai-product-feed.mjs build --require-tag="$PERSONALIZED_TAG" --out=personalized.tsv
+          node validate-feed.mjs personalized.tsv --sample-urls=10
+          python3 make-parquet.py --in personalized.tsv --outdir dist --name personalized --rows-per-shard 200000
+
       # Same rows, Pinterest's catalog column set — published next to the parquet as
       # dist/pinterest-products.csv for Pinterest's "data source from URL" ingestion.
       - name: Build Pinterest catalog CSV
@@ -127,10 +140,10 @@ jobs:
             echo '### Feed refreshed'
             echo
             python3 - <<'PY'
-          import json
-          m = json.load(open('dist/manifest.json'))
-          print(f"- rows: **{m['rows']}**")
-          for s in m['shards']:
-              print(f"- `{s['file']}` — {s['rows']} rows, {s['bytes']/1e6:.1f} MB")
+          import json, pathlib
+          for f in sorted(pathlib.Path('dist').glob('*manifest*.json')):
+              m = json.load(open(f))
+              for s in m['shards']:
+                  print(f"- `{s['file']}` — **{s['rows']}** rows, {s['bytes']/1e6:.1f} MB")
           PY
           } >> "$GITHUB_STEP_SUMMARY"
