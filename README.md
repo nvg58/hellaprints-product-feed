@@ -38,6 +38,21 @@ python3 make-parquet.py --in hellaprints-openai-products.tsv --outdir dist
 ./publish-feed.sh
 ```
 
+## Feeds published under the prefix
+
+| File | Cohort | Built from |
+|---|---|---|
+| `products.parquet` | `harvester` lifecycle cohort | `--include-ids=include-ids.txt`, refreshed from the dashboard |
+| `personalized.parquet` | every product tagged `CL2:personalized` | `--require-tag=CL2:personalized` over the cached PDP tags |
+
+`--require-tag` needs no credentials and reproduces the Merchize back-office query
+(`tags[]=CL2:personalized&isPersonalized=true`): back-office products that are inactive never
+appear in the storefront catalog, so the storefront-visible half of that query is the whole
+feedable set. Products flagged `is_stealthy` in the back office are the one exception — they are
+live at their URL but absent from the storefront listing API, so they cannot be picked up here;
+un-stealth them in Merchize and the next run includes them. Override the tag with the repo
+variable `PERSONALIZED_TAG`.
+
 ## Which products go in
 
 `build --include-ids=include-ids.txt` restricts the feed to an allow-list of `item_id`s; without the
