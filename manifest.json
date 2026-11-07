@@ -1,0 +1,45 @@
+{
+  "feed": "hellaprints-products",
+  "file_type": "full-parquet",
+  "compression": "zstd",
+  "rows": 228,
+  "columns": [
+    "item_id",
+    "title",
+    "description",
+    "url",
+    "image_url",
+    "availability",
+    "price",
+    "brand",
+    "is_eligible_search",
+    "is_eligible_checkout",
+    "is_ads_eligible",
+    "return_policy",
+    "seller_name",
+    "seller_url",
+    "seller_privacy_policy",
+    "seller_tos",
+    "mpn",
+    "condition",
+    "product_category",
+    "group_id",
+    "listing_has_variations",
+    "item_group_title",
+    "size",
+    "additional_image_urls",
+    "accepts_returns",
+    "return_deadline_in_days",
+    "target_countries",
+    "store_country",
+    "is_digital"
+  ],
+  "shards": [
+    {
+      "file": "products.parquet",
+      "rows": 228,
+      "bytes": 109285,
+      "sha256": "c12eb16fd4a5bd6f21371e4801b64305b1426bce68c8ea6ae2130342ccd70217"
+    }
+  ]
+}
